@@ -2,239 +2,355 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ニゲカチマップ</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gemini HTML IDE</title>
 
 <style>
-    #map {
-        height: 1080px; /* 見やすさのため調整（必要に応じて1080pxに戻してください） */
-        width: 100%;
-    }
-    #login-form, #report-form {
-        padding: 15px;
-        border: 1px solid #ccc;
-        border-radius: 5px;
-        margin: 10px;
-        background-color: #f9f9f9;
-    }
-    .pen-icon {
-        position: fixed;
-        top: 15px;
-        right: 15px;
-        width: 44px;
-        height: 44px;
-        background: white;
-        border: 1px solid #aaa;
-        border-radius: 50%;
-        font-size: 24px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    }
-    img.preview {
-        display: block;
-        max-width: 180px; /* 吹き出しの幅(200px)より少し小さくして右余白を確保 */
-        height: auto;
-        border-radius: 5px;
-        margin-top: 10px;
-        margin-bottom: 5px;
-    }
+*{
+box-sizing:border-box;
+margin:0;
+padding:0;
+font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+}
+
+body{
+height:100vh;
+display:flex;
+flex-direction:column;
+background:#fff;
+}
+
+.toolbar{
+height:60px;
+display:flex;
+align-items:center;
+padding:12px;
+border-bottom:1px solid #ddd;
+gap:20px;
+}
+
+button{
+padding:10px 16px;
+border:none;
+border-radius:10px;
+background:#007aff;
+color:#fff;
+cursor:pointer;
+}
+
+input{
+padding:10px;
+border:1px solid #ccc;
+border-radius:10px;
+}
+
+.main{
+flex:1;
+display:flex;
+overflow:hidden;
+}
+
+.panel{
+border-right:1px solid #ddd;
+display:flex;
+flex-direction:column;
+}
+
+.chat{width:30%;}
+.editor{width:35%;}
+.preview{width:35%;}
+
+.messages{
+flex:1;
+overflow:auto;
+padding:16px;
+display:flex;
+flex-direction:column;
+gap:12px;
+}
+
+.msg{
+padding:12px;
+border-radius:14px;
+max-width:80%;
+}
+
+.user{
+background:#007aff;
+color:#fff;
+align-self:flex-end;
+}
+
+.ai{
+background:#eee;
+align-self:flex-start;
+}
+
+textarea{
+flex:1;
+border:none;
+outline:none;
+padding:20px;
+font-family:monospace;
+font-size:14px;
+resize:none;
+}
+
+iframe{
+width:100%;
+height:100%;
+border:none;
+}
+
+.bottom{
+padding:12px;
+border-top:1px solid #ddd;
+display:flex;
+gap:10px;
+}
 </style>
 </head>
 
 <body>
 
-<div class="pen-icon" onclick="toggleLoginUI()">✏️</div>
+<div class="toolbar">
+<input id="apikey" placeholder="Gemini API Key" style="width:250px;">
+<button onclick="saveKey()">保存</button>
 
-<div id="login-form" style="display:none;">
-    <input id="email" type="email" placeholder="メールアドレス" style="width:90%; margin-bottom:10px;"><br>
-    <input id="password" type="password" placeholder="パスワード" style="width:90%; margin-bottom:10px;"><br>
-    <button onclick="login()">ログイン</button>
-    <button onclick="logout()">ログアウト</button>
-    <p id="login-status"></p>
+<div style="flex:1;text-align:center;">
+<button onclick="resetApp()">リセット</button>
+<button onclick="undo()">戻る</button>
+<button onclick="redo()">進む</button>
 </div>
 
-<div id="report-form" style="display:none;">
-    <label><b>1. 地図上をクリックして場所を選択</b></label><br><br>
-    
-    <label>日時</label><br>
-    <input type="datetime-local" id="report-datetime" style="width:90%; margin-bottom:10px;"><br>
-
-    <label>状況の詳細</label><br>
-    <textarea id="description" rows="3" style="width:90%;"></textarea><br><br>
-
-    <label>画像（任意）</label><br>
-    <input type="file" id="image-input" accept="image/*" style="width:90%; margin-bottom:10px;"><br><br>
-
-    <button id="submit-btn" onclick="submitReport()" style="padding: 10px 20px;">投稿する</button>
+<button onclick="shareHTML()">共有</button>
 </div>
 
-<div id="map"></div>
+<div class="main">
 
-<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage-compat.js"></script>
+<div class="panel chat">
+<div class="messages" id="messages"></div>
+
+<div class="bottom">
+<input id="chatInput" placeholder="Geminiへ指示" style="flex:1;">
+<button onclick="sendToGemini()">送信</button>
+</div>
+</div>
+
+<div class="panel editor">
+<textarea id="editor"></textarea>
+</div>
+
+<div class="panel preview">
+<iframe id="preview"></iframe>
+</div>
+
+</div>
 
 <script>
-const firebaseConfig = {
-    apiKey: "AIzaSyB_ft6Nsv511VwGh73Peljdkhvc4cT1PK8",
-    authDomain: "danger-e17d4.firebaseapp.com",
-    projectId: "danger-e17d4",
-    storageBucket: "danger-e17d4.firebasestorage.app",
-    messagingSenderId: "671800740218",
-    appId: "1:671800740218:web:a95e9750fbf79905ea2ec3"
-};
 
-firebase.initializeApp(firebaseConfig);
+let apiKey = localStorage.getItem("gemini_api_key") || "";
+let chat = JSON.parse(localStorage.getItem("chat") || "[]");
 
-const auth = firebase.auth();
-const db = firebase.firestore();
-const storage = firebase.storage();
+let history = [];
+let historyIndex = -1;
 
-let map;
-let selectedLocation = null;
-let tempMarker = null;
+const editor = document.getElementById("editor");
+const preview = document.getElementById("preview");
+const messages = document.getElementById("messages");
+const apikeyInput = document.getElementById("apikey"); // 共通変数として取得
 
-function toggleLoginUI() {
-    const form = document.getElementById("login-form");
-    form.style.display = (form.style.display === "none") ? "block" : "none";
-}
+const defaultHTML = `<!DOCTYPE html>
+<html>
+<body style="
+display:flex;
+justify-content:center;
+align-items:center;
+height:100vh;
+font-family:-apple-system;
+font-size:48px;
+font-weight:bold;
+">
+Hello, World!
+</body>
+</html>`;
 
-auth.onAuthStateChanged(user => {
-    if (user) {
-        document.getElementById("report-form").style.display = "block";
-        document.getElementById("login-status").textContent = "ログイン中";
-    } else {
-        document.getElementById("report-form").style.display = "none";
-        document.getElementById("login-status").textContent = "投稿できるのはメンバーのみです。";
-    }
+apikeyInput.value = apiKey;
+editor.value = localStorage.getItem("html") || defaultHTML;
+
+renderPreview();
+renderChat();
+saveHistory();
+
+// 【追加】キーボードで入力・貼り付けした瞬間に自動でLocalStorageに保存する処理
+apikeyInput.addEventListener("input", () => {
+    apiKey = apikeyInput.value.trim();
+    localStorage.setItem("gemini_api_key", apiKey);
 });
 
-function login() {
-    auth.signInWithEmailAndPassword(
-        document.getElementById("email").value,
-        document.getElementById("password").value
-    ).catch(() => alert("ログイン失敗"));
+function saveKey(){
+apiKey = apikeyInput.value.trim();
+
+if(!apiKey){
+alert("APIキーを入力してください");
+return;
 }
 
-function logout() {
-    auth.signOut();
+localStorage.setItem("gemini_api_key", apiKey);
+alert("APIキー保存しました");
 }
 
-function initMap() {
-    const center = { lat: 36.3658, lng: 140.4764 };
-    map = new google.maps.Map(document.getElementById("map"), {
-        center: center,
-        zoom: 16
-    });
-
-    map.addListener("click", e => {
-        if (!auth.currentUser) {
-            alert("投稿にはログインが必要です");
-            return;
-        }
-        selectedLocation = { lat: e.latLng.lat(), lng: e.latLng.lng() };
-        if (tempMarker) tempMarker.setMap(null);
-        tempMarker = new google.maps.Marker({
-            position: selectedLocation,
-            map: map,
-            icon: "http://maps.google.com/mapfiles/ms/icons/blue-pushpin.png"
-        });
-    });
-
-    listenForReports();
+function renderPreview(){
+preview.srcdoc = editor.value;
+localStorage.setItem("html", editor.value);
 }
 
-function listenForReports() {
-    db.collection("reports").onSnapshot(snapshot => {
-        snapshot.docChanges().forEach(change => {
-            if (change.type === "added") {
-                const d = change.doc.data();
-                const marker = new google.maps.Marker({
-                    position: { lat: d.latitude, lng: d.longitude },
-                    map: map
-                });
+editor.addEventListener("input", ()=>{
+renderPreview();
+saveHistory();
+});
 
-                const time = d.reportTimestamp ? new Date(d.reportTimestamp.toDate()).toLocaleString() : "不明";
-                const imageHtml = d.imageUrl ? `<img src="${d.imageUrl}" class="preview">` : "";
-
-                const info = new google.maps.InfoWindow({
-                    content: `
-                        <div style="max-width:200px;">
-                            <h3 style="margin:0 0 5px 0;">危険箇所</h3>
-                            <small>${time}</small><br>
-                            <p style="margin:5px 0;">${d.description}</p>
-                            ${imageHtml}
-                            <hr>
-                            <small>投稿者: ${d.username}</small>
-                        </div>
-                    `
-                });
-
-                marker.addListener("click", () => info.open(map, marker));
-            }
-        });
-    });
+function saveHistory(){
+if(history[history.length - 1] !== editor.value){
+history.push(editor.value);
+historyIndex = history.length - 1;
+}
 }
 
-async function submitReport() {
-    const btn = document.getElementById("submit-btn");
-    const descInput = document.getElementById("description");
-    const fileInput = document.getElementById("image-input");
-
-    if (!auth.currentUser) return alert("ログインしてください");
-    if (!selectedLocation) return alert("地図をクリックして場所を指定してください");
-    if (!descInput.value.trim()) return alert("状況を入力してください");
-
-    btn.disabled = true;
-    btn.textContent = "送信中...";
-
-    try {
-        let imageUrl = "";
-        const file = fileInput.files[0];
-        
-        // 画像アップロード処理
-        if (file) {
-            const storageRef = storage.ref(`reports/${Date.now()}_${file.name}`);
-            const snapshot = await storageRef.put(file);
-            imageUrl = await snapshot.ref.getDownloadURL();
-        }
-
-        const dateValue = document.getElementById("report-datetime").value;
-        const date = dateValue ? new Date(dateValue) : new Date();
-
-        await db.collection("reports").add({
-            latitude: selectedLocation.lat,
-            longitude: selectedLocation.lng,
-            description: descInput.value,
-            imageUrl: imageUrl,
-            username: "ニゲカチ",
-            reportTimestamp: firebase.firestore.Timestamp.fromDate(date),
-            created: firebase.firestore.FieldValue.serverTimestamp()
-        });
-
-        alert("投稿しました");
-        descInput.value = "";
-        fileInput.value = "";
-        if (tempMarker) tempMarker.setMap(null);
-        selectedLocation = null;
-
-    } catch (error) {
-        console.error(error);
-        alert("エラーが発生しました: " + error.message);
-    } finally {
-        btn.disabled = false;
-        btn.textContent = "投稿する";
-    }
+function undo(){
+if(historyIndex > 0){
+historyIndex--;
+editor.value = history[historyIndex];
+renderPreview();
 }
-</script>
+}
 
-<script async defer
-src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC3WivvfQ9Y-qkXpjXwWXGGEXGKDOPhvMw&callback=initMap">
+function redo(){
+if(historyIndex < history.length - 1){
+historyIndex++;
+editor.value = history[historyIndex];
+renderPreview();
+}
+}
+
+function renderChat(){
+messages.innerHTML = "";
+
+chat.forEach(m=>{
+const div = document.createElement("div");
+div.className = "msg " + (m.user ? "user" : "ai");
+div.textContent = m.text;
+messages.appendChild(div);
+});
+
+messages.scrollTop = messages.scrollHeight;
+localStorage.setItem("chat", JSON.stringify(chat));
+}
+
+function resetApp(){
+chat = [];
+editor.value = defaultHTML;
+history = [];
+historyIndex = -1;
+
+saveHistory();
+renderPreview();
+renderChat();
+
+localStorage.removeItem("chat");
+localStorage.removeItem("html");
+}
+
+function shareHTML(){
+navigator.clipboard.writeText(editor.value);
+alert("HTMLコピーしました");
+}
+
+function extractHTML(text){
+const m = text.match(/```html([\s\S]*?)```/);
+return m ? m[1].trim() : null;
+}
+
+async function sendToGemini(){
+
+if(!apiKey){
+alert("APIキーを設定してください");
+return;
+}
+
+const input = document.getElementById("chatInput");
+const prompt = input.value.trim();
+if(!prompt) return;
+
+chat.push({ user:true, text:prompt });
+renderChat();
+input.value="";
+
+chat.push({ user:false, text:"Geminiが考え中..." });
+renderChat();
+
+try{
+
+const MAX_LEN = 8000;
+
+const safeHTML =
+editor.value.length > MAX_LEN
+? editor.value.slice(0, MAX_LEN) + "\n...(省略)"
+: editor.value;
+
+const res = await fetch(
+`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+{
+method:"POST",
+headers:{ "Content-Type":"application/json" },
+body: JSON.stringify({
+contents:[{
+role:"user",
+parts:[{
+text:`現在HTML:\n${safeHTML}\n\n指示:\n${prompt}`
+}]
+}],
+systemInstruction:{
+parts:[{
+text:"HTML/CSS専門家。必ず完全HTMLを```html```で返す"
+}]
+}
+})
+}
+);
+
+if(!res.ok){
+const text = await res.text();
+throw new Error(text);
+}
+
+const data = await res.json();
+
+chat.pop();
+
+const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+const code = extractHTML(reply);
+
+if(code){
+editor.value = code;
+renderPreview();
+saveHistory();
+chat.push({ user:false, text:"HTMLを更新しました" });
+}else{
+chat.push({ user:false, text:"HTML抽出に失敗しました" });
+}
+
+}catch(e){
+chat.pop();
+chat.push({
+user:false,
+text:"エラー:\n" + e.message
+});
+}
+
+renderChat();
+}
+
 </script>
 
 </body>
