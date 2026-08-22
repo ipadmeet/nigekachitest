@@ -22,7 +22,10 @@
   #map { 
     height: 100vh; 
     width: 100vw;
-    transition: transform 0.3s ease-out;
+    /* 回転軸を中心にし、1.6倍に拡大して回転時のスキマ（黒・灰色部分）を防止 */
+    transform-origin: center center;
+    transform: scale(1.6) rotate(0deg);
+    transition: transform 0.2s linear;
   }
 
   .controls {
@@ -326,7 +329,7 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
 <script>
-// 💡 ガード処理の例外設定
+// 右クリック・デベロッパーツール制限
 document.addEventListener('contextmenu', e => {
   if (e.target && e.target.id === 'modal-textarea') return;
   e.preventDefault();
@@ -386,11 +389,9 @@ function handleOrientation(event) {
   if (!isTracking) return;
 
   let heading = null;
-  // iOS特有のコンパス角度
   if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
     heading = event.webkitCompassHeading;
   } else if (event.alpha !== null) {
-    // Android等
     heading = 360 - event.alpha;
   }
 
@@ -399,10 +400,10 @@ function handleOrientation(event) {
   }
 }
 
-// 地図を回転させる関数
+// 地図を回転させる関数（scale(1.6)を維持して角の欠けを防止）
 function rotateMap(heading) {
   const mapElement = document.getElementById('map');
-  mapElement.style.transform = `rotate(-${heading}deg)`;
+  mapElement.style.transform = `scale(1.6) rotate(-${heading}deg)`;
   map.invalidateSize();
 }
 
@@ -419,7 +420,7 @@ async function toggleLocationTracking() {
     isTracking = false;
     locBtn.classList.remove("active");
     locBtn.textContent = "📍 現在地";
-    rotateMap(0); // 地図の向きを元に戻す
+    rotateMap(0); // 角度を正面に戻す
     window.removeEventListener('deviceorientation', handleOrientation, true);
   } else {
     // 追従開始
@@ -428,14 +429,14 @@ async function toggleLocationTracking() {
       return;
     }
 
-    // iOS Safari向け: ユーザー操作トリガーの直後にパーミッション要求を実行
+    // iOS Safari用パーミッション要求
     if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
       try {
         const permissionState = await DeviceOrientationEvent.requestPermission();
         if (permissionState === 'granted') {
           window.addEventListener('deviceorientation', handleOrientation, true);
         } else {
-          console.warn("コンパス（動作と方向）のアクセスが拒否されました。");
+          console.warn("コンパスのアクセスが拒否されました。");
         }
       } catch (error) {
         console.error("DeviceOrientation error:", error);
@@ -448,7 +449,6 @@ async function toggleLocationTracking() {
     locBtn.classList.add("active");
     locBtn.textContent = "📍 追従中";
 
-    // iOS対応オプション: maximumAgeを長めに取らず、タイムアウトを調整
     const geoOptions = {
       enableHighAccuracy: true,
       timeout: 15000,
@@ -462,11 +462,9 @@ async function toggleLocationTracking() {
         const accuracy = position.coords.accuracy;
         const heading = position.coords.heading;
 
-        // 描画のクリア
         if (currentLocationMarker) map.removeLayer(currentLocationMarker);
         if (currentLocationAccuracyCircle) map.removeLayer(currentLocationAccuracyCircle);
 
-        // 精度範囲（薄い円）
         currentLocationAccuracyCircle = L.circle([lat, lng], {
           radius: accuracy,
           color: '#007bff',
@@ -475,7 +473,6 @@ async function toggleLocationTracking() {
           stroke: false
         }).addTo(map);
 
-        // 現在地（青い〇）
         currentLocationMarker = L.circleMarker([lat, lng], {
           radius: 9,
           color: '#ffffff',
@@ -484,12 +481,10 @@ async function toggleLocationTracking() {
           fillOpacity: 1
         }).addTo(map);
 
-        // 移動中のGPSヘディングがあれば優先使用
         if (heading !== null && heading !== undefined && !isNaN(heading) && heading >= 0) {
           rotateMap(heading);
         }
 
-        // カメラを中心へ移動
         map.setView([lat, lng], 17);
       },
       (error) => {
@@ -498,7 +493,7 @@ async function toggleLocationTracking() {
           errorMsg = "位置情報の利用が拒否されています。\niPhoneの「設定」>「プライバシーとセキュリティ」>「位置情報サービス」からSafariの位置情報を許可してください。";
         }
         alert(errorMsg);
-        toggleLocationTracking(); // エラー時はモードをオフに戻す
+        toggleLocationTracking();
       },
       geoOptions
     );
