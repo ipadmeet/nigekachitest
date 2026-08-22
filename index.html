@@ -1,357 +1,689 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Gemini HTML IDE</title>
+<meta charset="utf-8" />
+<title>共有マップ</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 
 <style>
-*{
-box-sizing:border-box;
-margin:0;
-padding:0;
-font-family:-apple-system,BlinkMacSystemFont,sans-serif;
-}
+  body { 
+    margin: 0; 
+    overflow: hidden; 
+  }
 
-body{
-height:100vh;
-display:flex;
-flex-direction:column;
-background:#fff;
-}
+  #map-container {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    position: relative;
+  }
 
-.toolbar{
-height:60px;
-display:flex;
-align-items:center;
-padding:12px;
-border-bottom:1px solid #ddd;
-gap:20px;
-}
+  #map { 
+    height: 100vh; 
+    width: 100vw;
+    transition: transform 0.3s ease-out;
+  }
 
-button{
-padding:10px 16px;
-border:none;
-border-radius:10px;
-background:#007aff;
-color:#fff;
-cursor:pointer;
-}
+  .controls {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 1000;
 
-input{
-padding:10px;
-border:1px solid #ccc;
-border-radius:10px;
-}
+    background: white;
+    padding: 10px;
+    border-radius: 10px;
 
-.main{
-flex:1;
-display:flex;
-overflow:hidden;
-}
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  }
 
-.panel{
-border-right:1px solid #ddd;
-display:flex;
-flex-direction:column;
-}
+  .row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
 
-.chat{width:30%;}
-.editor{width:35%;}
-.preview{width:35%;}
+  .text-input {
+    width: 150px;
+  }
+  
+  .desc-btn, .location-btn {
+    border: 1px solid #ccc;
+    background-color: #f8f9fa;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
 
-.messages{
-flex:1;
-overflow:auto;
-padding:16px;
-display:flex;
-flex-direction:column;
-gap:12px;
-}
+  .desc-btn:hover, .location-btn:hover {
+    background-color: #e2e6ea;
+  }
 
-.msg{
-padding:12px;
-border-radius:14px;
-max-width:80%;
-}
+  .location-btn {
+    background-color: #e7f3ff;
+    border-color: #70b5ff;
+    color: #0056b3;
+    font-weight: bold;
+  }
+  .location-btn.active {
+    background-color: #007bff;
+    color: white;
+    border-color: #0056b3;
+  }
+  
+  .file-input-wrapper {
+    position: relative;
+    overflow: hidden;
+    display: inline-block;
+  }
+  
+  .file-input-wrapper input[type=file] {
+    font-size: 100px;
+    position: absolute;
+    left: 0;
+    top: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  
+  .file-custom-btn {
+    border: 1px solid #ccc;
+    background-color: #f8f9fa;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    display: inline-block;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  
+  .file-custom-btn:hover {
+    background-color: #e2e6ea;
+  }
 
-.user{
-background:#007aff;
-color:#fff;
-align-self:flex-end;
-}
+  .add-btn {
+    width: 140px;
+    white-space: nowrap;
+  }
 
-.ai{
-background:#eee;
-align-self:flex-start;
-}
+  .zip-container {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    border-left: 1px solid #ccc;
+    padding-left: 8px;
+  }
 
-textarea{
-flex:1;
-border:none;
-outline:none;
-padding:20px;
-font-family:monospace;
-font-size:14px;
-resize:none;
-}
+  .zip-input {
+    width: 110px;
+  }
 
-iframe{
-width:100%;
-height:100%;
-border:none;
-}
+  .zip-btn {
+    width: 50px;
+    cursor: pointer;
+  }
 
-.bottom{
-padding:12px;
-border-top:1px solid #ddd;
-display:flex;
-gap:10px;
-}
+  .custom-popup img {
+    width: 120px;
+    display: block;
+    margin-top: 5px;
+    margin-bottom: 5px;
+  }
+
+  .popup-desc {
+    font-size: 13px;
+    color: #555;
+    margin-top: 4px;
+    word-break: break-all;
+  }
+
+  .popup-desc a {
+    color: #007bff;
+    text-decoration: underline;
+  }
+  .popup-desc a:hover {
+    color: #0056b3;
+  }
+  
+  .delete-btn {
+    margin-top: 8px;
+    background-color: #ff4d4d;
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  .confirm-box {
+    margin-top: 5px;
+    background: #fff3f3;
+    padding: 5px;
+    border: 1px solid #ffcccc;
+    border-radius: 4px;
+    text-align: center;
+  }
+  
+  .yes-btn {
+    background-color: #d9534f;
+    color: white;
+    border: none;
+    padding: 2px 8px;
+    margin-right: 5px;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  
+  .no-btn {
+    background-color: #f0ad4e;
+    color: white;
+    border: none;
+    padding: 2px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+
+  .custom-modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 2000;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .custom-modal {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    width: 280px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .custom-modal h3 {
+    margin: 0;
+    font-size: 15px;
+    color: #333;
+  }
+
+  .custom-modal textarea {
+    width: 100%;
+    height: 100px;
+    resize: none;
+    box-sizing: border-box;
+    padding: 6px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 13px;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+  }
+
+  .modal-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .modal-btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  .modal-ok { background-color: #007bff; color: white; }
+  .modal-ok:hover { background-color: #0056b3; }
+  .modal-cancel { background-color: #6c757d; color: white; }
+  .modal-cancel:hover { background-color: #5a6268; }
+
+  .bottom-instructions {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1000;
+    background: rgba(255, 255, 255, 0.85);
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+    text-align: center;
+    pointer-events: none;
+  }
+
+  .bottom-instructions h3 {
+    margin: 0;
+    padding: 12px 10px;
+    font-size: 14px;
+    color: #333;
+    font-weight: bold;
+  }
+  
+  @media (max-width: 600px) {
+    .bottom-instructions h3 {
+      font-size: 12px;
+      padding: 10px 5px;
+    }
+  }
 </style>
 </head>
-
 <body>
 
-<div class="toolbar">
-<input id="apikey" placeholder="Gemini API Key" style="width:250px;">
-<button onclick="saveKey()">保存</button>
+<div class="controls">
+  <div class="row">
+    <input type="text" id="text" class="text-input" placeholder="名称">
+    <button class="desc-btn" id="desc-btn" onclick="openDescModal()">説明を追加</button>
+    
+    <div class="file-input-wrapper">
+      <div class="file-custom-btn" id="file-label">画像を選択</div>
+      <input type="file" id="image" accept="image/*" onchange="updateFileLabel()">
+    </div>
+  </div>
+  
+  <div class="row">
+    <button class="add-btn" onclick="enableAdd()">マーカー追加モード</button>
+    
+    <!-- 📍 現在地ボタン -->
+    <button class="location-btn" id="loc-btn" onclick="toggleLocationTracking()">📍 現在地</button>
 
-<div style="flex:1;text-align:center;">
-<button onclick="resetApp()">リセット</button>
-<button onclick="undo()">戻る</button>
-<button onclick="redo()">進む</button>
+    <div class="zip-container">
+      <input type="text" id="zipcode" class="zip-input" placeholder="郵便番号(－なし)">
+      <button class="zip-btn" onclick="searchZipcode()">検索</button>
+    </div>
+  </div>
 </div>
 
-<button onclick="shareHTML()">共有</button>
+<div class="custom-modal-overlay" id="desc-modal">
+  <div class="custom-modal">
+    <h3>この場所の説明を入力</h3>
+    <textarea id="modal-textarea" placeholder="説明やURL（https://...）を入力してください..."></textarea>
+    <div class="modal-buttons">
+      <button class="modal-btn modal-cancel" onclick="closeDescModal(false)">キャンセル</button>
+      <button class="modal-btn modal-ok" onclick="closeDescModal(true)">OK</button>
+    </div>
+  </div>
 </div>
 
-<div class="main">
-
-<div class="panel chat">
-<div class="messages" id="messages"></div>
-
-<div class="bottom">
-<input id="chatInput" placeholder="Geminiへ指示" style="flex:1;">
-<button onclick="sendToGemini()">送信</button>
-</div>
+<div class="bottom-instructions">
+  <h3>「名称」→「マーカー追加モード」→ピン止め可能</h3>
 </div>
 
-<div class="panel editor">
-<textarea id="editor"></textarea>
+<div id="map-container">
+  <div id="map"></div>
 </div>
 
-<div class="panel preview">
-<iframe id="preview"></iframe>
-</div>
-
-</div>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
 <script>
-
-let apiKey = localStorage.getItem("gemini_api_key") || "";
-let chat = JSON.parse(localStorage.getItem("chat") || "[]");
-
-let history = [];
-let historyIndex = -1;
-
-const editor = document.getElementById("editor");
-const preview = document.getElementById("preview");
-const messages = document.getElementById("messages");
-const apikeyInput = document.getElementById("apikey"); // 共通変数として取得
-
-const defaultHTML = `<!DOCTYPE html>
-<html>
-<body style="
-display:flex;
-justify-content:center;
-align-items:center;
-height:100vh;
-font-family:-apple-system;
-font-size:48px;
-font-weight:bold;
-">
-Hello, World!
-</body>
-</html>`;
-
-apikeyInput.value = apiKey;
-editor.value = localStorage.getItem("html") || defaultHTML;
-
-renderPreview();
-renderChat();
-saveHistory();
-
-// 【追加】キーボードで入力・貼り付けした瞬間に自動でLocalStorageに保存する処理
-apikeyInput.addEventListener("input", () => {
-    apiKey = apikeyInput.value.trim();
-    localStorage.setItem("gemini_api_key", apiKey);
+// 💡 ガード処理の例外設定
+document.addEventListener('contextmenu', e => {
+  if (e.target && e.target.id === 'modal-textarea') return;
+  e.preventDefault();
 });
 
-function saveKey(){
-apiKey = apikeyInput.value.trim();
-
-if(!apiKey){
-alert("APIキーを入力してください");
-return;
-}
-
-localStorage.setItem("gemini_api_key", apiKey);
-alert("APIキー保存しました");
-}
-
-function renderPreview(){
-preview.srcdoc = editor.value;
-localStorage.setItem("html", editor.value);
-}
-
-editor.addEventListener("input", ()=>{
-renderPreview();
-saveHistory();
+document.addEventListener('keydown', e => {
+  if (e.target && e.target.id === 'modal-textarea') {
+    if (e.key === 'v' || e.key === 'c' || e.key === 'a' || e.key === 'x' || e.key === 'z') {
+      return; 
+    }
+  }
+  
+  if (e.key === 'F12' || ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j')) || ((e.ctrlKey || e.metaKey) && (e.key === 'U' || e.key === 'u'))) {
+    e.preventDefault();
+  }
 });
 
-function saveHistory(){
-if(history[history.length - 1] !== editor.value){
-history.push(editor.value);
-historyIndex = history.length - 1;
-}
-}
-
-function undo(){
-if(historyIndex > 0){
-historyIndex--;
-editor.value = history[historyIndex];
-renderPreview();
-}
-}
-
-function redo(){
-if(historyIndex < history.length - 1){
-historyIndex++;
-editor.value = history[historyIndex];
-renderPreview();
-}
-}
-
-function renderChat(){
-messages.innerHTML = "";
-
-chat.forEach(m=>{
-const div = document.createElement("div");
-div.className = "msg " + (m.user ? "user" : "ai");
-div.textContent = m.text;
-messages.appendChild(div);
+document.getElementById('modal-textarea').addEventListener('paste', function(e) {
+  e.stopPropagation(); 
 });
 
-messages.scrollTop = messages.scrollHeight;
-localStorage.setItem("chat", JSON.stringify(chat));
+let myUserId = localStorage.getItem('map_user_id');
+if (!myUserId) {
+  myUserId = 'user_' + Math.random().toString(36).substr(2, 9);
+  localStorage.setItem('map_user_id', myUserId);
 }
 
-function resetApp(){
-chat = [];
-editor.value = defaultHTML;
-history = [];
-historyIndex = -1;
+// 🔥 Firebase設定
+const firebaseConfig = {
+  apiKey: "AIzaSyAguJ8B6ILRpYUXLc2H2hKYRAsKktfKerI",
+  authDomain: "kunimap-3c5f6.firebaseapp.com",
+  projectId: "kunimap-3c5f6",
+  storageBucket: "kunimap-3c5f6.firebasestorage.app",
+  messagingSenderId: "262185437500",
+  appId: "1:262185437500:web:7768f16679009037a93639"
+};
 
-saveHistory();
-renderPreview();
-renderChat();
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
 
-localStorage.removeItem("chat");
-localStorage.removeItem("html");
+const map = L.map('map', { zoomControl: false }).setView([36.51282963559868, 140.6193865254294], 15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+L.control.zoom({ position: 'topright' }).addTo(map);
+
+let addMode = false;
+let tempDescription = ""; 
+const markers = {};
+
+// 📍 GPS追従・回転用の変数
+let watchId = null;
+let isTracking = false;
+let currentLocationMarker = null;
+let currentLocationAccuracyCircle = null;
+
+// iOS Safari用の方向取得処理
+function handleOrientation(event) {
+  if (!isTracking) return;
+
+  let heading = null;
+  // iOS特有のコンパス角度
+  if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
+    heading = event.webkitCompassHeading;
+  } else if (event.alpha !== null) {
+    // Android等
+    heading = 360 - event.alpha;
+  }
+
+  if (heading !== null) {
+    rotateMap(heading);
+  }
 }
 
-function shareHTML(){
-navigator.clipboard.writeText(editor.value);
-alert("HTMLコピーしました");
+// 地図を回転させる関数
+function rotateMap(heading) {
+  const mapElement = document.getElementById('map');
+  mapElement.style.transform = `rotate(-${heading}deg)`;
+  map.invalidateSize();
 }
 
-function extractHTML(text){
-const m = text.match(/```html([\s\S]*?)```/);
-return m ? m[1].trim() : null;
+// 📍 現在地追従のON/OFF切り替え
+async function toggleLocationTracking() {
+  const locBtn = document.getElementById("loc-btn");
+
+  if (isTracking) {
+    // 追従停止
+    if (watchId !== null) {
+      navigator.geolocation.clearWatch(watchId);
+      watchId = null;
+    }
+    isTracking = false;
+    locBtn.classList.remove("active");
+    locBtn.textContent = "📍 現在地";
+    rotateMap(0); // 地図の向きを元に戻す
+    window.removeEventListener('deviceorientation', handleOrientation, true);
+  } else {
+    // 追従開始
+    if (!navigator.geolocation) {
+      alert("お使いのブラウザは位置情報サービスに対応していません。");
+      return;
+    }
+
+    // iOS Safari向け: ユーザー操作トリガーの直後にパーミッション要求を実行
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      try {
+        const permissionState = await DeviceOrientationEvent.requestPermission();
+        if (permissionState === 'granted') {
+          window.addEventListener('deviceorientation', handleOrientation, true);
+        } else {
+          console.warn("コンパス（動作と方向）のアクセスが拒否されました。");
+        }
+      } catch (error) {
+        console.error("DeviceOrientation error:", error);
+      }
+    } else {
+      window.addEventListener('deviceorientation', handleOrientation, true);
+    }
+
+    isTracking = true;
+    locBtn.classList.add("active");
+    locBtn.textContent = "📍 追従中";
+
+    // iOS対応オプション: maximumAgeを長めに取らず、タイムアウトを調整
+    const geoOptions = {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 0
+    };
+
+    watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const accuracy = position.coords.accuracy;
+        const heading = position.coords.heading;
+
+        // 描画のクリア
+        if (currentLocationMarker) map.removeLayer(currentLocationMarker);
+        if (currentLocationAccuracyCircle) map.removeLayer(currentLocationAccuracyCircle);
+
+        // 精度範囲（薄い円）
+        currentLocationAccuracyCircle = L.circle([lat, lng], {
+          radius: accuracy,
+          color: '#007bff',
+          fillColor: '#007bff',
+          fillOpacity: 0.15,
+          stroke: false
+        }).addTo(map);
+
+        // 現在地（青い〇）
+        currentLocationMarker = L.circleMarker([lat, lng], {
+          radius: 9,
+          color: '#ffffff',
+          weight: 3,
+          fillColor: '#007bff',
+          fillOpacity: 1
+        }).addTo(map);
+
+        // 移動中のGPSヘディングがあれば優先使用
+        if (heading !== null && heading !== undefined && !isNaN(heading) && heading >= 0) {
+          rotateMap(heading);
+        }
+
+        // カメラを中心へ移動
+        map.setView([lat, lng], 17);
+      },
+      (error) => {
+        let errorMsg = "現在地の取得に失敗しました。";
+        if (error.code === error.PERMISSION_DENIED) {
+          errorMsg = "位置情報の利用が拒否されています。\niPhoneの「設定」>「プライバシーとセキュリティ」>「位置情報サービス」からSafariの位置情報を許可してください。";
+        }
+        alert(errorMsg);
+        toggleLocationTracking(); // エラー時はモードをオフに戻す
+      },
+      geoOptions
+    );
+  }
 }
 
-async function sendToGemini(){
-
-if(!apiKey){
-alert("APIキーを設定してください");
-return;
+function enableAdd(){
+  addMode = true;
+  alert("地図をクリックしてください");
 }
 
-const input = document.getElementById("chatInput");
-const prompt = input.value.trim();
-if(!prompt) return;
-
-chat.push({ user:true, text:prompt });
-renderChat();
-input.value="";
-
-chat.push({ user:false, text:"Geminiが考え中..." });
-renderChat();
-
-try{
-
-const MAX_LEN = 8000;
-
-const safeHTML =
-editor.value.length > MAX_LEN
-? editor.value.slice(0, MAX_LEN) + "\n...(省略)"
-: editor.value;
-
-const res = await fetch(
-`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-{
-method:"POST",
-headers:{ "Content-Type":"application/json" },
-body: JSON.stringify({
-contents:[{
-role:"user",
-parts:[{
-text:`現在HTML:\n${safeHTML}\n\n指示:\n${prompt}`
-}]
-}],
-systemInstruction:{
-parts:[{
-text:"HTML/CSS専門家。必ず完全HTMLを```html```で返す"
-}]
-}
-})
-}
-);
-
-if(!res.ok){
-const text = await res.text();
-throw new Error(text);
+function openDescModal() {
+  document.getElementById("modal-textarea").value = tempDescription;
+  document.getElementById("desc-modal").style.display = "flex";
+  setTimeout(() => { document.getElementById("modal-textarea").focus(); }, 50);
 }
 
-const data = await res.json();
-
-chat.pop();
-
-const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-const code = extractHTML(reply);
-
-if(code){
-editor.value = code;
-renderPreview();
-saveHistory();
-chat.push({ user:false, text:"HTMLを更新しました" });
-}else{
-chat.push({ user:false, text:"HTML抽出に失敗しました" });
+function closeDescModal(isSave) {
+  if (isSave) {
+    tempDescription = document.getElementById("modal-textarea").value.trim();
+    const descBtn = document.getElementById("desc-btn");
+    if (tempDescription) {
+      descBtn.textContent = "説明入力済";
+      descBtn.style.backgroundColor = "#e2e6ea";
+    } else {
+      descBtn.textContent = "説明を追加";
+      descBtn.style.backgroundColor = "#f8f9fa";
+    }
+  }
+  document.getElementById("desc-modal").style.display = "none";
 }
 
-}catch(e){
-chat.pop();
-chat.push({
-user:false,
-text:"エラー:\n" + e.message
+function updateFileLabel() {
+  const fileInput = document.getElementById("image");
+  const fileLabel = document.getElementById("file-label");
+  if (fileInput.files.length > 0) {
+    fileLabel.textContent = "画像選択中";
+    fileLabel.style.backgroundColor = "#e2e6ea";
+  } else {
+    fileLabel.textContent = "画像を選択";
+    fileLabel.style.backgroundColor = "#f8f9fa";
+  }
+}
+
+async function searchZipcode() {
+  const zipInput = document.getElementById("zipcode").value.trim();
+  const cleanZip = zipInput.replace(/-/g, "");
+  if (cleanZip.length !== 7 || isNaN(cleanZip)) {
+    alert("郵便番号は7桁の数字で入力してください。");
+    return;
+  }
+  try {
+    const response = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${cleanZip}`);
+    const data = await response.json();
+    if (data.status === 200 && data.results) {
+      const result = data.results[0];
+      const address = result.address1 + result.address2 + result.address3;
+      const geoResponse = await fetch(`https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(address)}`);
+      const geoData = await geoResponse.json();
+      if (geoData && geoData.length > 0) {
+        const lng = geoData[0].geometry.coordinates[0];
+        const lat = geoData[0].geometry.coordinates[1];
+        map.setView([lat, lng], 15);
+      } else { alert("該当する地図上の位置が見つかりませんでした。"); }
+    } else { alert("該当する郵便番号が見つかりませんでした。"); }
+  } catch (error) { alert("検索中にエラーが発生しました。"); }
+}
+
+function resizeImage(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        const canvas = document.createElement("canvas");
+        const maxWidth = 300;
+        const scale = maxWidth / img.width;
+        canvas.width = maxWidth;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const base64 = canvas.toDataURL("image/jpeg", 0.7);
+        resolve(base64);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function linkify(text) {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  return text.replace(urlRegex, function(url) {
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+  });
+}
+
+map.on('click', async function(e) {
+  if (!addMode) return;
+  addMode = false;
+
+  const text = document.getElementById("text").value;
+  const file = document.getElementById("image").files[0];
+  if (!text) { alert("名称を入力してください"); return; }
+
+  let imageData = null;
+  if (file) { imageData = await resizeImage(file); }
+
+  await db.collection("markers").add({
+    lat: e.latlng.lat,
+    lng: e.latlng.lng,
+    text: text,
+    description: tempDescription, 
+    image: imageData,
+    uid: myUserId
+  });
+
+  document.getElementById("text").value = "";
+  document.getElementById("image").value = "";
+  tempDescription = ""; 
+  
+  const descBtn = document.getElementById("desc-btn");
+  descBtn.textContent = "説明を追加";
+  descBtn.style.backgroundColor = "#f8f9fa";
+  updateFileLabel();
 });
-}
 
-renderChat();
-}
+db.collection("markers").onSnapshot(snapshot => {
+  snapshot.docChanges().forEach(change => {
+    const data = change.doc.data();
+    const id = change.doc.id;
 
+    if (change.type === "added") {
+      let html = `<div class="custom-popup" id="popup-${id}"><strong>${data.text}</strong>`;
+      
+      if (data.image) { 
+        html += `<img src="${data.image}">`; 
+      }
+      
+      if (data.description) {
+        const linkedText = linkify(data.description);
+        html += `<div class="popup-desc">${linkedText.replace(/\n/g, '<br>')}</div>`;
+      }
+      
+      if (data.uid === myUserId) {
+        html += `<button class="delete-btn" data-id="${id}">削除</button>`;
+      }
+      html += `</div>`;
+
+      const marker = L.marker([data.lat, data.lng]).addTo(map).bindPopup(html);
+      markers[id] = marker;
+    }
+
+    if (change.type === "removed") {
+      if (markers[id]) { map.removeLayer(markers[id]); delete markers[id]; }
+    }
+  });
+});
+
+document.addEventListener('click', function(e) {
+  if (e.target && e.target.classList.contains('delete-btn')) {
+    const id = e.target.getAttribute('data-id');
+    const popupDiv = document.getElementById(`popup-${id}`);
+    if (popupDiv) {
+      e.target.outerHTML = `
+        <div class="confirm-box" id="confirm-${id}">
+          <div style="font-size:12px; margin-bottom:4px; color:#d9534f;">本当に削除しますか？</div>
+          <button class="yes-btn" data-id="${id}">はい</button>
+          <button class="no-btn" data-id="${id}">いいえ</button>
+        </div>
+      `;
+    }
+  }
+  
+  if (e.target && e.target.classList.contains('yes-btn')) {
+    const id = e.target.getAttribute('data-id');
+    if (id) { db.collection("markers").doc(id).delete().catch(err => alert("削除権限がありません")); }
+  }
+  
+  if (e.target && e.target.classList.contains('no-btn')) {
+    const id = e.target.getAttribute('data-id');
+    const confirmBox = document.getElementById(`confirm-${id}`);
+    if (confirmBox) { confirmBox.outerHTML = `<button class="delete-btn" data-id="${id}">削除</button>`; }
+  }
+});
 </script>
-
 </body>
 </html>
